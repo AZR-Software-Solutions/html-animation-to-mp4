@@ -1,0 +1,9 @@
+node_modules/
+*.mp4
+*.mov
+*.webm
+h2v-frames-*/
+_frames/
+frames/
+.DS_Store
+Thumbs.db
