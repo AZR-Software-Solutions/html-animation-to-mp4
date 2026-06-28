@@ -9,7 +9,10 @@ captures **one screenshot per output frame at a precise timestamp**, then hands 
 sequence to ffmpeg. Every frame is exact, so the video is as smooth as the chosen fps
 allows, at any resolution.
 
-## Claude Design timeline artifacts (the deterministic path)
+There are three capture modes: **seek** (Claude Design), **virtual** (deterministic
+generic), and **realtime** (best-effort generic).
+
+## Mode 1 — seek: Claude Design timeline artifacts
 
 A Claude "Design" animation exports as a bundle:
 
@@ -50,22 +53,48 @@ So `render.mjs`:
 This is why Claude Design artifacts come out perfectly: the animation is a pure function
 of `t`, and we control `t`.
 
-## Generic HTML animations (the real-time fallback)
+## Mode 2 — virtual: a deterministic clock for generic animations (`--virtual`)
 
-For any other animated page there's no seek hook, so the script plays it and captures at
-wall-clock `1/fps` intervals. This works for CSS/JS animations and loops but isn't
-frame-perfect (screenshot latency causes mild drift), and you must pass `--duration`.
+For an arbitrary page there's no seek hook, so we *create* one by freezing the page's
+sense of time. Before any page script runs (Playwright `addInitScript`), we replace the
+time primitives with virtual versions driven by a single controllable clock:
 
-**Planned enhancement — deterministic virtual clock:** override `Date.now`,
-`performance.now`, `requestAnimationFrame`, and timers via an init script so the page's
-own clock can be stepped frame-by-frame (the "timecut/timesnap" technique). This makes
-JS/canvas/WebGL animations frame-perfect too. Caveat: CSS keyframe/transition animations
-are driven by the compositor's clock and won't respect a mocked clock, so they'd still
-need real-time capture. Contributions welcome.
+- `Date.now()` / `new Date()` → virtual time (with a fixed wall-clock origin).
+- `performance.now()` → virtual milliseconds.
+- `requestAnimationFrame` / `cancelAnimationFrame` → callbacks are queued, not run on the
+  real vsync.
+- `setTimeout` / `setInterval` / `clear*` → virtual timers fired when virtual time passes
+  their deadline.
+
+Then per output frame we call a control hook, `window.__vclock.goTo(ms)`, which:
+
+1. Fires any due virtual timers in order (guarded against runaway intervals).
+2. Sets `currentTime = ms` on every `document.getAnimations()` entry — this drives **CSS
+   keyframe animations, CSS transitions, and Web-Animations-API** clips deterministically
+   (they're on the compositor clock, which the JS overrides above don't touch).
+3. Syncs `<video>`/`<audio>` `currentTime`.
+4. Runs exactly one animation frame (the queued rAF callbacks); each callback typically
+   draws and re-queues the next frame.
+
+The result is frame-perfect capture for JS/canvas/WebGL loops *and* CSS animations.
+Verified with a canvas+CSS test scene: at `t=0.2s` and `t=1.5s` the dot position, the
+sliding CSS bar, and the on-screen timestamp all match exactly.
+
+**Caveats (it's experimental):**
+- Libraries that build state from *real* time at load (e.g. an `await setTimeout` chain
+  during bootstrap) can be reordered by the virtual clock. If a page looks wrong under
+  `--virtual`, use default real-time instead.
+- WebGL/canvas that read time only from the rAF timestamp or `performance.now()` are
+  covered; anything reading a clock we didn't override (rare) won't step.
+- This is why it's opt-in: real-time is the most compatible default for unknown pages.
+
+## Mode 3 — realtime: best-effort generic (default)
+
+With no seek hook and no virtual clock, the script plays the page and captures at
+wall-clock `1/fps` intervals. Works for most CSS/JS loops; not frame-perfect (screenshot
+latency causes mild drift). Requires `--duration`.
 
 ## Encoding / quality
-
-ffmpeg settings used:
 
 ```
 ffmpeg -y -framerate <fps> -i f_%06d.png \
@@ -90,3 +119,12 @@ ffmpeg -i out.mp4 -i music.mp3 -c:v copy -map 0:v:0 -map 1:a:0 -shortest out-wit
 ```
 
 Use `-af "afade=t=out:st=<dur-2>:d=2"` to fade the music out at the end.
+
+## Poster frame / thumbnail
+
+Pass `--keep-frames` and grab any PNG from the temp frames dir, or extract straight from
+the MP4:
+
+```bash
+ffmpeg -i out.mp4 -ss 2.0 -frames:v 1 poster.png
+```

@@ -15,59 +15,66 @@ description: >-
 
 # html-animation-to-mp4
 
-Turn a browser-rendered animation into a real MP4 video file. The high-quality path
-renders **every frame at an exact timestamp** (no screen-recording jitter or dropped
-frames), then encodes with ffmpeg.
+Turn a browser-rendered animation into a real MP4 video file. The high-quality paths
+render **every frame at an exact timestamp** (no screen-recording jitter or dropped
+frames), then encode with ffmpeg.
 
-## Two modes (auto-selected)
+## Capture modes (auto-selected; override with a flag)
 
-1. **Claude Design timeline artifact (flagship, deterministic).** Claude "Design"
-   animations export as a `*.dc.html` plus sibling `.jsx`/`support.js`/`assets`. Their
-   engine exposes a per-frame seek hook (`data-om-seek-to-time-frame`), so the script
-   drives the playhead to each exact time, waits for the render to commit, and captures
-   it. **Canvas size and duration are auto-detected** from the Stage — you usually pass
-   nothing but the folder. This is what makes the result smooth and crisp.
-2. **Generic HTML/CSS/JS animation (fallback, real-time).** Any other animated page is
-   played and captured best-effort in real time. You must supply `--duration`; size
-   defaults to 1920×1080.
+| Mode | When | Quality |
+|---|---|---|
+| **seek** | Claude Design timeline artifact (`*.dc.html`) — auto-detected | Frame-perfect; size + duration auto-detected |
+| **virtual** (`--virtual`) | Any generic page, opt-in | Frame-perfect for JS/canvas/WebGL **and** CSS/WAAPI animations (experimental) |
+| **realtime** | Any generic page, default | Best-effort; mild timing drift; most compatible |
+
+- **seek** drives the Design engine's own per-frame hook (`data-om-seek-to-time-frame`)
+  to each exact time. This is why Claude Design exports come out smooth and crisp with
+  zero config — usually you pass nothing but the folder.
+- **virtual** freezes the page's clock (`Date`, `performance.now`, `requestAnimationFrame`,
+  timers, and CSS/Web-Animations time via `getAnimations().currentTime`) and steps it
+  frame-by-frame. Use it when a generic animation must be frame-perfect. If a page
+  misbehaves under it (some load-time timer chains can), fall back to default real-time.
 
 ## Prerequisites
 
 - **Node 18+**, **`playwright`** (`npm i playwright && npx playwright install chromium`),
   and **`ffmpeg`** on PATH (`ffmpeg -version` should work).
-- The script (`scripts/render.mjs`) resolves `playwright` from wherever it runs, so run
-  it from a directory that has `playwright` installed (e.g. `npm i` in this skill folder,
-  or copy `render.mjs` next to an existing Playwright install).
+- Run `scripts/render.mjs` from a directory where `playwright` resolves (this skill folder
+  after `npm install`, or copy the script next to an existing Playwright install).
 
 ## Quick start
 
 ```bash
-# Claude Design artifact — point at the folder; size + duration auto-detect.
-node scripts/render.mjs "path/to/My Animation"  --fps 30
+# Claude Design artifact — point at the folder; size + duration auto-detect:
+node scripts/render.mjs "path/to/My Animation" --fps 30
 
 # A single entry .html (Design or generic):
-node scripts/render.mjs "path/to/promo.dc.html"
+node scripts/render.mjs path/to/promo.dc.html
 
-# Generic HTML animation — give it a duration:
+# Generic animation, best-effort real-time (give it a duration):
 node scripts/render.mjs ./banner --duration 8 --width 1080 --height 1080
+
+# Generic animation, frame-perfect deterministic:
+node scripts/render.mjs ./banner --virtual --duration 8 --width 1080 --height 1080
 ```
 
-Output defaults to `<input-dir>/<name>.mp4`. Use `--out` to choose the path.
+Output defaults to `<input-dir>/<name>.mp4`; use `--out` to choose.
 
 ## Options
 
 | Flag | Meaning | Default |
 |---|---|---|
 | `--out <file>` | Output MP4 path | `<input-dir>/<name>.mp4` |
-| `--fps <n>` | Frames per second (try 60 for ultra-smooth) | `30` |
-| `--duration <s>` | Length in seconds | auto (Design) / **required** (generic) |
-| `--width` / `--height` | Output pixels | auto (Design) / `1920×1080` (generic) |
+| `--fps <n>` | Frames per second (60 = ultra-smooth) | `30` |
+| `--duration <s>` | Length in seconds | auto (seek) / **required** (virtual & realtime) |
+| `--width` / `--height` | Output pixels | auto (seek) / `1920×1080` (generic) |
 | `--selector <css>` | Element to capture | Design canvas, else full page |
 | `--scale <n>` | Supersample then downscale for crispness | `1` (use `2` for extra sharp) |
 | `--crf <n>` | x264 quality, lower = better/bigger | `18` |
 | `--bg <color>` | Background for transparent generic pages | `#000000` |
-| `--realtime` | Force real-time capture even for a Design artifact | off |
-| `--keep-frames` | Keep the intermediate PNGs | off |
+| `--virtual` | Deterministic virtual-clock capture (generic) | off |
+| `--realtime` | Force best-effort real-time capture | off |
+| `--keep-frames` | Keep the intermediate PNGs (e.g. for a poster) | off |
 
 ## Examples
 
@@ -77,11 +84,14 @@ node scripts/render.mjs "marketing/My Promo" --fps 60
 
 # Square cut for LinkedIn, extra-sharp:
 node scripts/render.mjs ./promo.dc.html --width 1080 --height 1080 --scale 2 --out promo-square.mp4
+
+# A hand-written canvas/WebGL loop, frame-perfect:
+node scripts/render.mjs ./scene.html --virtual --duration 6 --fps 60 --selector "#stage"
 ```
 
 ## Add a music / audio track (bonus)
 
-The capture is silent (frames only). To add a soundtrack, mux it in afterward:
+Capture is silent (frames only). Mux a soundtrack in afterward:
 
 ```bash
 ffmpeg -i out.mp4 -i music.mp3 -c:v copy -map 0:v:0 -map 1:a:0 -shortest out-with-audio.mp4
@@ -89,17 +99,15 @@ ffmpeg -i out.mp4 -i music.mp3 -c:v copy -map 0:v:0 -map 1:a:0 -shortest out-wit
 
 ## Troubleshooting
 
-- **Black or blank frames:** the page needs the local server (the script starts one) —
-  don't open `file://` directly. Give it a moment after load; the script already waits for
-  `document.fonts.ready`, images, and a settle delay.
-- **Fonts look wrong:** Design artifacts pull Google Fonts over the network — ensure the
-  machine is online during capture.
-- **Generic animation timing drifts:** real-time capture is best-effort. For frame-perfect
-  generic output, the animation needs a seek hook; Claude Design artifacts have one. See
-  `references/how-it-works.md` for the planned deterministic virtual-clock mode.
+- **Black/blank frames:** the page is served over a local http server (the script starts
+  one) — don't open `file://`. The script already waits for `document.fonts.ready`, images,
+  and a settle delay; raise it if a heavy page needs more.
+- **Fonts look wrong:** Design artifacts pull Google Fonts over the network — be online.
+- **`--virtual` page acts weird:** some libraries start timers at load that a virtual clock
+  reorders. Fall back to default real-time, or capture a Design artifact (seek mode).
 - **`ffmpeg failed`:** install ffmpeg and confirm `ffmpeg -version` runs.
 
 ## How it works (deeper)
 
-See `references/how-it-works.md` for the deterministic seek protocol, why this beats
-screen-recording, ffmpeg/quality settings, supersampling, and adding audio.
+See `references/how-it-works.md` for the seek protocol, the virtual-clock internals and
+caveats, ffmpeg/quality settings, supersampling, and adding audio.

@@ -1,6 +1,6 @@
 {
   "name": "html-animation-to-mp4",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Render an HTML/CSS/JS animation — especially a Claude Design timeline artifact — to a clean MP4 via deterministic headless-browser frame capture + ffmpeg.",
   "type": "module",
   "bin": {
@@ -10,7 +10,7 @@
     "render": "node scripts/render.mjs",
     "postinstall-note": "echo Run: npx playwright install chromium  (and ensure ffmpeg is on PATH)"
   },
-  "keywords": ["animation", "mp4", "video", "ffmpeg", "playwright", "html", "claude", "claude-design", "artifact", "reel", "headless", "render"],
+  "keywords": ["animation", "mp4", "video", "ffmpeg", "playwright", "html", "claude", "claude-design", "artifact", "reel", "headless", "render", "deterministic", "frame-capture"],
   "license": "MIT",
   "author": "AZR Software Solutions",
   "repository": {
