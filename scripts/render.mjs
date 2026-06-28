@@ -83,6 +83,15 @@ const outFile = opts.out && opts.out !== "true"
   : path.join(serveDir, entryFile.replace(/\.(dc\.)?html?$/i, "") + ".mp4");
 const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), "h2v-frames-"));
 
+// ffmpeg preflight — fail fast with a clear message rather than after capturing frames.
+{
+  const probe = spawnSync("ffmpeg", ["-version"]);
+  if (probe.error || probe.status !== 0) {
+    console.error("[h2v] ffmpeg not found on PATH. Install it (Windows: winget install Gyan.FFmpeg · macOS: brew install ffmpeg · Linux: apt install ffmpeg) and retry.");
+    process.exit(1);
+  }
+}
+
 // ---- static server (relative fetches + CORS need http, not file://) ----
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".jsx": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".css": "text/css", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml", ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".mp4": "video/mp4", ".webm": "video/webm", ".mp3": "audio/mpeg" };
 const server = http.createServer((req, res) => {

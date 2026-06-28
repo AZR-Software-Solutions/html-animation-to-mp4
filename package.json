@@ -17,6 +17,10 @@
     "type": "git",
     "url": "https://github.com/AZR-Software-Solutions/html-animation-to-mp4"
   },
+  "bugs": { "url": "https://github.com/AZR-Software-Solutions/html-animation-to-mp4/issues" },
+  "homepage": "https://github.com/AZR-Software-Solutions/html-animation-to-mp4#readme",
+  "files": ["scripts/", "references/", "SKILL.md", "README.md", "LICENSE"],
+  "publishConfig": { "access": "public" },
   "engines": {
     "node": ">=18"
   },
