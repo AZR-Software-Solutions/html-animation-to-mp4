@@ -52,6 +52,9 @@ usage: node render.mjs <input.html | dir> [options]
   --virtual         deterministic virtual-clock capture for generic animations (experimental)
   --realtime        force best-effort real-time capture
   --keep-frames     keep the intermediate PNG frames
+  --chrome <path>   use an existing Chromium/Chrome binary instead of Playwright's bundled
+                    one (also reads env H2V_CHROME); handy offline or when another revision
+                    of the browser is already installed
 
 modes: Claude Design artifacts auto-use a frame-perfect seek hook. For other pages,
        default is real-time; add --virtual for deterministic JS/canvas/CSS capture.`);
@@ -78,6 +81,13 @@ const crf = opts.crf && opts.crf !== "true" ? String(opts.crf) : "18";
 const bg = opts.bg && opts.bg !== "true" ? opts.bg : "#000000";
 const forceRealtime = !!opts.realtime;
 const forceVirtual = !!opts.virtual && !forceRealtime;
+// Optional override for the browser binary. Playwright pins an exact Chromium revision, so a
+// machine that already has a different (or hand-managed) build otherwise has to download one.
+const chromePath = (opts.chrome && opts.chrome !== "true" ? opts.chrome : process.env.H2V_CHROME) || "";
+if (chromePath && !fs.existsSync(path.resolve(chromePath))) {
+  console.error(`[h2v] --chrome not found: ${path.resolve(chromePath)}`);
+  process.exit(1);
+}
 const outFile = opts.out && opts.out !== "true"
   ? path.resolve(opts.out)
   : path.join(serveDir, entryFile.replace(/\.(dc\.)?html?$/i, "") + ".mp4");
@@ -165,7 +175,10 @@ function VCLOCK_INIT() {
 
 // ---- launch ----
 const DC = "svg[data-om-exportable-video-with-duration-secs]";
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  ...(chromePath ? { executablePath: path.resolve(chromePath) } : {}),
+});
 const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: scale });
 const page = await ctx.newPage();
 page.on("pageerror", (e) => console.log("[pageerror]", String(e).slice(0, 200)));
