@@ -75,6 +75,7 @@ Output defaults to `<input-dir>/<name>.mp4`; use `--out` to choose.
 | `--virtual` | Deterministic virtual-clock capture (generic) | off |
 | `--realtime` | Force best-effort real-time capture | off |
 | `--keep-frames` | Keep the intermediate PNGs (e.g. for a poster) | off |
+| `--chrome <path>` | Reuse an existing Chromium/Chrome binary (or env `H2V_CHROME`) | Playwright's browser |
 
 ## Examples
 

@@ -95,6 +95,29 @@ npx playwright install chromium   # one-time browser download
 ffmpeg -version                   # confirm ffmpeg is available
 ```
 
+### Using a Chromium you already have
+
+Playwright pins one exact Chromium revision per release, so it will not reuse a browser
+that another tool (or another Playwright version) already downloaded — it asks for
+`npx playwright install chromium` instead. If you already have a Chromium/Chrome build and
+would rather not download another one (offline machines, CI caches, a shared browser
+directory, a slow or blocked CDN), point the renderer at it:
+
+```bash
+node scripts/render.mjs page.html --chrome "/path/to/chrome"      # git-bash / macOS / Linux
+node scripts/render.mjs page.html --chrome "C:\Path\to\chrome.exe" # PowerShell / cmd
+```
+
+or set it once for the session:
+
+```bash
+export H2V_CHROME="/path/to/chrome"      # PowerShell: $env:H2V_CHROME = "C:\Path\to\chrome.exe"
+```
+
+The flag is optional — omit it and Playwright behaves exactly as before. Any Chromium-based
+build the Playwright version can drive works (Chrome, Edge, Chromium, or a Playwright
+browser from another revision).
+
 ## Quick start
 
 ```bash
@@ -132,6 +155,7 @@ node scripts/render.mjs <input.html | dir> [options]
 | `--virtual` | Deterministic virtual-clock capture (generic) | off |
 | `--realtime` | Force best-effort real-time capture | off |
 | `--keep-frames` | Keep the intermediate PNG frames | off |
+| `--chrome <path>` | Reuse an existing Chromium/Chrome binary (or env `H2V_CHROME`) | Playwright's bundled browser |
 | `--help` | Print usage | — |
 
 The input can be a single `.html`/`.dc.html` file **or a folder** — for a folder it picks
@@ -232,6 +256,10 @@ settings, supersampling, and audio — are in
 - **`ffmpeg failed`** — install ffmpeg and confirm `ffmpeg -version` runs in the same shell.
 - **`Cannot find package 'playwright'`** — run `npm install` in the folder you’re running the
   script from (Node resolves dependencies from there).
+- **`Executable doesn't exist at …ms-playwright/chromium_headless_shell-<rev>…`** — Playwright
+  pins a browser revision and only accepts that exact one. Either install it
+  (`npx playwright install chromium`) or reuse a build you already have with
+  `--chrome <path>` / `H2V_CHROME` (see [Using a Chromium you already have](#using-a-chromium-you-already-have)).
 - **Is there audio?** — no; the capture is frame-only. See [Add a music / audio track](#add-a-music--audio-track).
 - **Does it need a GPU / display?** — no; it runs fully headless.
 
