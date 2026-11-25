@@ -120,6 +120,20 @@ ffmpeg -i out.mp4 -i music.mp3 -c:v copy -map 0:v:0 -map 1:a:0 -shortest out-wit
 
 Use `-af "afade=t=out:st=<dur-2>:d=2"` to fade the music out at the end.
 
+## Choosing the browser binary
+
+Playwright maps each of its releases to one pinned Chromium revision, resolved from its own
+download cache (`%LOCALAPPDATA%\ms-playwright` on Windows, `~/Library/Caches/ms-playwright`
+on macOS, `~/.cache/ms-playwright` on Linux). It does *not* fall back to a system Chrome, and
+it rejects a cache entry built for a different revision — that is the
+`Executable doesn't exist at …` error.
+
+`--chrome <path>` (or `H2V_CHROME`) short-circuits that lookup: the path is resolved and
+passed to `chromium.launch({ executablePath })`, so the renderer drives that binary instead.
+Nothing else changes — viewport, `deviceScaleFactor` for `--scale`, the virtual clock and
+the screenshot path all behave the same. A missing path fails fast with
+`[h2v] --chrome not found: …` before the static server or any frame capture starts.
+
 ## Poster frame / thumbnail
 
 Pass `--keep-frames` and grab any PNG from the temp frames dir, or extract straight from
